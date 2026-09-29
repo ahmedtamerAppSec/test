@@ -19,7 +19,7 @@ deploy_windows:
     DEPLOY_ROOT: "C:\\apps\\local-tasks"
   script:
     - '$ErrorActionPreference = "Stop"'
-    - 'New-Item -ItemType Directory -Force -Path "$env:DEPLOY_ROOT\public" | Out-Null'
+    - 'New-Item -ItemType Directory -Force -Path "$env:DEPLOY_ROOT\public" | Out-Null' #
     - 'Copy-Item "$env:CI_PROJECT_DIR\public\*" "$env:DEPLOY_ROOT\public" -Recurse -Force'
     - 'Copy-Item "$env:CI_PROJECT_DIR\server.ps1", "$env:CI_PROJECT_DIR\start-background.ps1" $env:DEPLOY_ROOT -Force'
     - 'Copy-Item "$env:CI_PROJECT_DIR\nginx.windows.conf" "C:\nginx\conf\nginx.conf" -Force'
