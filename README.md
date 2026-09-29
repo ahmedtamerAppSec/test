@@ -1,41 +1,49 @@
 # Local Tasks
 
-A PostgreSQL-backed task list. Nginx is the only public entry point; the API runs in a Docker container and PostgreSQL runs outside the container.
+A PostgreSQL-backed task list deployed on Windows Server with a GitLab Windows shell runner. Nginx is the only public entry point; the PowerShell API listens on localhost port 8083.
 
-## Deploy
+## Server prerequisites
 
-This deployment uses a Linux-compatible Docker engine for the Node API. The current Windows container engine cannot run the `node:22-alpine` image; use a Linux Docker host or Linux GitLab runner for the API container.
+- PostgreSQL 17 running locally
+- Nginx installed at `C:\nginx`
+- GitLab Runner installed and registered with the `windows` tag
+- Runner shell set to PowerShell
 
-Build the API image:
+The runner account must be allowed to write to `C:\apps` and reload Nginx.
+
+## GitLab variables
+
+Add these CI/CD variables to the GitLab project. Mark `DEPLOY_PGPASSWORD` as masked and protected:
+
+- `DEPLOY_PGHOST`: PostgreSQL host, normally `localhost`
+- `DEPLOY_PGPORT`: normally `5432`
+- `DEPLOY_PGDATABASE`: normally `postgres`
+- `DEPLOY_PGUSER`: PostgreSQL username
+- `DEPLOY_PGPASSWORD`: PostgreSQL password
+
+## Deployment
+
+Push to the default branch. `.gitlab-ci.yml` will:
+
+1. Validate the PowerShell API and PostgreSQL client.
+2. Copy the API and frontend to `C:\apps\local-tasks`.
+3. Restart only this application's API process.
+4. Validate and reload Nginx.
+5. Check the public app at `http://localhost/`.
+
+Nginx serves `C:\apps\local-tasks\public` and proxies `/api/` to `127.0.0.1:8083`. Port 8083 is not exposed publicly.
+
+## Manual recovery
+
+From the deployment directory:
 
 ```powershell
-docker build -f Dockerfile.api -t local-tasks-api .
+$env:APP_PORT = "8083"
+$env:PGHOST = "localhost"
+$env:PGPORT = "5432"
+$env:PGDATABASE = "postgres"
+$env:PGUSER = "postgres"
+powershell -ExecutionPolicy Bypass -File .\start-background.ps1
 ```
 
-Start it with PostgreSQL connection variables. Keep the API bound to localhost so only Nginx can reach it:
-
-```powershell
-docker run -d --name local-tasks-api --restart unless-stopped `
-  -p 127.0.0.1:8083:3000 `
-  -e PGHOST="your-postgres-host" `
-  -e PGPORT="5432" `
-  -e PGDATABASE="postgres" `
-  -e PGUSER="postgres" `
-  -e PGPASSWORD="your-password" `
-  local-tasks-api
-```
-
-Configure native Windows Nginx with [nginx.windows.conf](nginx.windows.conf). It serves `public/` and proxies `/api/` to `127.0.0.1:8083`. Replace the `root` path with the absolute path to this project's `public` folder, then run `nginx.exe -t` and reload Nginx.
-
-Open the app through Nginx at http://localhost/. Do not expose port 8083 publicly.
-
-## GitLab CI
-
-`.gitlab-ci.yml` checks the Node API and builds/pushes the Docker image to the GitLab Container Registry on the default branch. The runner must support Docker-in-Docker.
-
-## Features
-
-- Add tasks
-- Mark tasks complete
-- Delete tasks
-- Clear completed tasks
+The Nginx configuration is in [nginx.windows.conf](nginx.windows.conf).
