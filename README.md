@@ -1,44 +1,41 @@
 # Local Tasks
 
-A small task list backed by PostgreSQL. It can run directly on Windows Server or in Docker on a Linux container engine.
+A PostgreSQL-backed task list. Nginx is the only public entry point; the API runs in a Docker container and PostgreSQL runs outside the container.
 
-## Windows Server
+## Deploy
 
-This path uses the existing PostgreSQL 17 Windows service and the PowerShell API.
+This deployment uses a Linux-compatible Docker engine for the Node API. The current Windows container engine cannot run the `node:22-alpine` image; use a Linux Docker host or Linux GitLab runner for the API container.
 
-From PowerShell in this folder:
-
-```powershell
-$env:APP_PORT = "8083"
-powershell -ExecutionPolicy Bypass -File .\start-background.ps1
-```
-
-Enter the PostgreSQL password when prompted. The API then runs in the background at http://localhost:8083/.
-
-The launcher does not save the password. Logs are written to `server.log`.
-
-For Nginx, install the native Windows build and use [nginx.windows.conf](nginx.windows.conf). Replace its `root` path with the absolute path to this project's `public` folder. Nginx serves the frontend and proxies `/api/` to port 8083.
-
-## Docker Compose
-
-The supplied Compose stack runs Nginx, the Node API, and PostgreSQL together:
+Build the API image:
 
 ```powershell
-docker compose up --build -d
+docker build -f Dockerfile.api -t local-tasks-api .
 ```
 
-Open http://localhost:8080. Stop it with:
+Start it with PostgreSQL connection variables. Keep the API bound to localhost so only Nginx can reach it:
 
 ```powershell
-docker compose down
+docker run -d --name local-tasks-api --restart unless-stopped `
+  -p 127.0.0.1:8083:3000 `
+  -e PGHOST="your-postgres-host" `
+  -e PGPORT="5432" `
+  -e PGDATABASE="postgres" `
+  -e PGUSER="postgres" `
+  -e PGPASSWORD="your-password" `
+  local-tasks-api
 ```
 
-The Compose files use Linux images. On Windows Server, the Docker engine must be configured for Linux containers or the stack must run on a Linux host. The Windows container engine cannot run `node:alpine`, `nginx:alpine`, or `postgres:alpine`.
+Configure native Windows Nginx with [nginx.windows.conf](nginx.windows.conf). It serves `public/` and proxies `/api/` to `127.0.0.1:8083`. Replace the `root` path with the absolute path to this project's `public` folder, then run `nginx.exe -t` and reload Nginx.
+
+Open the app through Nginx at http://localhost/. Do not expose port 8083 publicly.
+
+## GitLab CI
+
+`.gitlab-ci.yml` checks the Node API and builds/pushes the Docker image to the GitLab Container Registry on the default branch. The runner must support Docker-in-Docker.
 
 ## Features
 
 - Add tasks
 - Mark tasks complete
-- Delete individual tasks
+- Delete tasks
 - Clear completed tasks
-- PostgreSQL-backed persistence

@@ -1,0 +1,25 @@
+stages:
+  - verify
+  - package
+
+variables:
+  DOCKER_TLS_CERTDIR: "/certs"
+
+verify:
+  image: node:22-alpine
+  stage: verify
+  script:
+    - npm install --ignore-scripts
+    - node --check app.js
+
+docker:
+  image: docker:27
+  services:
+    - name: docker:27-dind
+  stage: package
+  script:
+    - docker build --file Dockerfile.api --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" .
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
