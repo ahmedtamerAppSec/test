@@ -21,14 +21,14 @@ secret_scan:
   tags:
     - windows
   script:
-    - trufflehog.exe gitlab --token  --repo https://gitlab.com/appsec-group1/test.git
+    - trufflehog.exe gitlab --token $GITLAB_TOKEN --repo https://gitlab.com/appsec-group1/test.git
 
-SAST _scan:
+SAST_scan:
   stage: security_test
   tags:
     - windows
   script:
-    - semgrep scan --config autot
+    - semgrep scan --config auto .
 
 
 verify:
