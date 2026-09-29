@@ -30,6 +30,18 @@ SAST_scan:
   script:
     - semgrep scan --config auto .
 
+SCA_SCAN:
+  stage: security_test
+  tags:
+    - windows
+  script:
+    - .\bin\dependency-check.bat --out . --scan .
+  artifacts:
+    when: always
+    paths:
+      - dependency-check-report.*
+    expire_in: 1 week
+
 verify:
   stage: verify
   tags:
