@@ -1,30 +1,49 @@
 stages:
+  - build
+  - security_test
   - verify
   - deploy
+
+build:
+  stage: build
+  tags:
+    - windows
+  script:
+    - 'npm install --omit=dev'
+    - 'npm run build'
+  artifacts:
+    paths:
+      - build-output/
+    expire_in: 1 week
+
 
 verify:
   stage: verify
   tags:
     - windows
   script:
-    - '$errors = $null; [System.Management.Automation.Language.Parser]::ParseFile("$env:CI_PROJECT_DIR\server.ps1", [ref]$null, [ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }'
-    - '& "C:\Program Files\PostgreSQL\17\bin\psql.exe" --version'
+    - 'node --check app.js'
+    - 'npm run build'
 
 deploy_windows:
   stage: deploy
   tags:
     - windows
+  needs:
+    - job: build
+      artifacts: true
   variables:
-    APP_PORT: "8083"
+    PORT: "8083"
     DEPLOY_ROOT: "C:\\apps\\local-tasks"
   script:
     - '$ErrorActionPreference = "Stop"'
     - 'New-Item -ItemType Directory -Force -Path "$env:DEPLOY_ROOT\public" | Out-Null' #
-    - 'Copy-Item "$env:CI_PROJECT_DIR\public\*" "$env:DEPLOY_ROOT\public" -Recurse -Force'
-    - 'Copy-Item "$env:CI_PROJECT_DIR\server.ps1", "$env:CI_PROJECT_DIR\start-background.ps1" $env:DEPLOY_ROOT -Force'
-    - 'Copy-Item "$env:CI_PROJECT_DIR\nginx.windows.conf" "C:\nginx\conf\nginx.conf" -Force'
-    - '$old = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*$env:DEPLOY_ROOT\server.ps1*" }; $old | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }'
-    - '$env:PGHOST = $env:DEPLOY_PGHOST; $env:PGPORT = $env:DEPLOY_PGPORT; $env:PGDATABASE = $env:DEPLOY_PGDATABASE; $env:PGUSER = $env:DEPLOY_PGUSER; $env:PGPASSWORD = $env:DEPLOY_PGPASSWORD; & "$env:DEPLOY_ROOT\start-background.ps1"'
+    - 'Copy-Item "$env:CI_PROJECT_DIR\build-output\public\*" "$env:DEPLOY_ROOT\public" -Recurse -Force'
+    - 'Copy-Item "$env:CI_PROJECT_DIR\build-output\app.js", "$env:CI_PROJECT_DIR\build-output\package.json" $env:DEPLOY_ROOT -Force'
+    - 'Copy-Item "$env:CI_PROJECT_DIR\build-output\nginx.windows.conf" "C:\nginx\conf\nginx.conf" -Force'
+    - 'Push-Location $env:DEPLOY_ROOT; npm install --omit=dev; Pop-Location'
+    - '$old = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*$env:DEPLOY_ROOT\app.js*" }; $old | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }'
+    - '$env:PORT = "8083"; $env:PGHOST = $env:DEPLOY_PGHOST; $env:PGPORT = $env:DEPLOY_PGPORT; $env:PGDATABASE = $env:DEPLOY_PGDATABASE; $env:PGUSER = $env:DEPLOY_PGUSER; $env:PGPASSWORD = $env:DEPLOY_PGPASSWORD; Start-Process -FilePath "node.exe" -ArgumentList "`"$env:DEPLOY_ROOT\app.js`"" -WorkingDirectory $env:DEPLOY_ROOT -WindowStyle Hidden'
     - '& "C:\nginx\nginx.exe" -t -p C:\nginx -c conf\nginx.conf'
     - 'Push-Location C:\nginx; & .\nginx.exe -s reload; if ($LASTEXITCODE -ne 0) { throw "Nginx reload failed" }; Pop-Location'
     - '$response = Invoke-WebRequest http://localhost/ -UseBasicParsing; if ($response.StatusCode -ne 200) { throw "Nginx health check failed" }'

@@ -1,11 +1,12 @@
 # Local Tasks
 
-A PostgreSQL-backed task list deployed on Windows Server with a GitLab Windows shell runner. Nginx is the only public entry point; the PowerShell API listens on localhost port 8083.
+A PostgreSQL-backed task list deployed on Windows Server with a GitLab Windows shell runner. Nginx is the only public entry point; the Node.js API listens on localhost port 8083.
 
 ## Server prerequisites
 
 - PostgreSQL 17 running locally
 - Nginx installed at `C:\nginx`
+- Node.js 22 LTS installed and available as `node` and `npm`
 - GitLab Runner installed and registered with the `windows` tag
 - Runner shell set to PowerShell
 
@@ -25,7 +26,7 @@ Add these CI/CD variables to the GitLab project. Mark `DEPLOY_PGPASSWORD` as mas
 
 Push to the default branch. `.gitlab-ci.yml` will:
 
-1. Validate the PowerShell API and PostgreSQL client.
+1. Build and validate the Node.js API.
 2. Copy the API and frontend to `C:\apps\local-tasks`.
 3. Restart only this application's API process.
 4. Validate and reload Nginx.
@@ -38,12 +39,13 @@ Nginx serves `C:\apps\local-tasks\public` and proxies `/api/` to `127.0.0.1:8083
 From the deployment directory:
 
 ```powershell
-$env:APP_PORT = "8083"
+$env:PORT = "8083"
 $env:PGHOST = "localhost"
 $env:PGPORT = "5432"
 $env:PGDATABASE = "postgres"
 $env:PGUSER = "postgres"
-powershell -ExecutionPolicy Bypass -File .\start-background.ps1
+npm install --omit=dev
+npm start
 ```
 
 The Nginx configuration is in [nginx.windows.conf](nginx.windows.conf).

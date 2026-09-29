@@ -5,6 +5,7 @@
   "description": "PostgreSQL-backed task API",
   "main": "app.js",
   "scripts": {
+    "build": "node build.js",
     "start": "node app.js"
   },
   "dependencies": {
