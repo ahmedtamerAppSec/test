@@ -35,12 +35,7 @@ SCA_SCAN:
   tags:
     - windows
   script:
-    - .\bin\dependency-check.bat --out . --scan .
-  artifacts:
-    when: always
-    paths:
-      - dependency-check-report.*
-    expire_in: 1 week
+    - dependency-check.bat --scan .
 
 verify:
   stage: verify
