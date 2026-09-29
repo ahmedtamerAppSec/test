@@ -16,6 +16,12 @@ build:
       - build-output/
     expire_in: 1 week
 
+security_test:
+  stage: security_test
+  tags:
+    - windows
+  script:
+    - trufflehog.exe gitab --token  --repo https://gitlab.com/appsec-group1/test.git
 
 verify:
   stage: verify
