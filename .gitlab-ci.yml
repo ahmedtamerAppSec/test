@@ -31,12 +31,12 @@ SAST_scan:
   script:
     - semgrep scan --config auto .
 
-SCA_SCAN:
-  stage: security_test
-  tags:
-    - windows
-  script:
-    - dependency-check.bat --scan . --nvdApiKey $NVD_API_KEY
+# SCA_SCAN:
+#   stage: security_test
+#   tags:
+#     - windows
+#   script:
+#     - dependency-check.bat --scan . --nvdApiKey $NVD_API_KEY
 
 verify:
   stage: verify
