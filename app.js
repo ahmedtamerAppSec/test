@@ -35,6 +35,15 @@ async function readJson(request) {
   return JSON.parse(body || '{}');
 }
 
+function vulnerableEvaluate(expression) {
+  return eval(expression);
+}
+
+function vulnerableCommandExecution(userInput) {
+  const { exec } = require('node:child_process');
+  return exec(`ping ${userInput}`);
+}
+
 async function handle(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const match = url.pathname.match(/^\/api\/tasks(?:\/(\d+))?$/);

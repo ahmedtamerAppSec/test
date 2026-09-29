@@ -30,7 +30,6 @@ SAST_scan:
   script:
     - semgrep scan --config auto .
 
-
 verify:
   stage: verify
   tags:
