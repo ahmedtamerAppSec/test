@@ -21,7 +21,7 @@ security_test:
   tags:
     - windows
   script:
-    - trufflehog.exe gitab --token  --repo https://gitlab.com/appsec-group1/test.git
+    - trufflehog.exe gitlab --token  --repo https://gitlab.com/appsec-group1/test.git
 
 verify:
   stage: verify
