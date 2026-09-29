@@ -35,7 +35,7 @@ SCA_SCAN:
   tags:
     - windows
   script:
-    - dependency-check.bat --scan .
+    - dependency-check.bat --scan . --nvdApiKey $NVD_API_KEY
 
 verify:
   stage: verify
