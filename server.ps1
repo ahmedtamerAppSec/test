@@ -11,9 +11,13 @@ if (-not (Test-Path $pgBin)) { throw "PostgreSQL client not found at $pgBin" }
 
 function Invoke-Database {
     param([Parameter(Mandatory = $true)][string]$Sql, [hashtable]$Variables = @{})
-    $arguments = @('-h', $hostName, '-U', $user, '-d', $database, '-At', '-q', '-c', $Sql)
+    $arguments = @('-h', $hostName, '-U', $user, '-d', $database, '-At', '-q')
     foreach ($key in $Variables.Keys) { $arguments += @('-v', "$key=$($Variables[$key])") }
+    $arguments += @('-c', $Sql)
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $output = & $pgBin @arguments 2>&1
+    $ErrorActionPreference = $previousErrorAction
     if ($LASTEXITCODE -ne 0) { throw (($output | Out-String).Trim()) }
     return ($output -join "`n").Trim()
 }
@@ -55,7 +59,8 @@ try {
                 $body = (Read-Body $context.Request | ConvertFrom-Json)
                 $title = [string]$body.title
                 if ([string]::IsNullOrWhiteSpace($title)) { Send-Response $context 400 '{"error":"Title is required"}'; continue }
-                $json = Invoke-Database -Sql "INSERT INTO tasks (title) VALUES (trim(:'title')) RETURNING json_build_object('id', id, 'title', title, 'completed', completed);" -Variables @{ title = $title }
+                $escapedTitle = $title.Replace("'", "''")
+                $json = Invoke-Database -Sql "INSERT INTO tasks (title) VALUES (trim('$escapedTitle')) RETURNING json_build_object('id', id, 'title', title, 'completed', completed);"
                 Send-Response $context 201 $json
                 continue
             }

@@ -1,25 +1,44 @@
 # Local Tasks
 
-A small PostgreSQL-backed task app that runs on Windows without Docker.
+A small task list backed by PostgreSQL. It can run directly on Windows Server or in Docker on a Linux container engine.
 
-## Requirements
+## Windows Server
 
-- PostgreSQL 17 installed locally
-- PostgreSQL service running
-- A PostgreSQL user that can connect to the selected database and create tables
-
-## Run
+This path uses the existing PostgreSQL 17 Windows service and the PowerShell API.
 
 From PowerShell in this folder:
 
 ```powershell
-$env:PGHOST = "localhost"
-$env:PGPORT = "5432"
-$env:PGUSER = "postgres"
-$env:PGDATABASE = "postgres"
-powershell -ExecutionPolicy Bypass -File .\start.ps1
+$env:APP_PORT = "8083"
+powershell -ExecutionPolicy Bypass -File .\start-background.ps1
 ```
 
-Open http://localhost:8080. The first start creates the `tasks` table automatically.
+Enter the PostgreSQL password when prompted. The API then runs in the background at http://localhost:8083/.
 
-To use another database or port, change `PGDATABASE` or `APP_PORT` before starting.
+The launcher does not save the password. Logs are written to `server.log`.
+
+For Nginx, install the native Windows build and use [nginx.windows.conf](nginx.windows.conf). Replace its `root` path with the absolute path to this project's `public` folder. Nginx serves the frontend and proxies `/api/` to port 8083.
+
+## Docker Compose
+
+The supplied Compose stack runs Nginx, the Node API, and PostgreSQL together:
+
+```powershell
+docker compose up --build -d
+```
+
+Open http://localhost:8080. Stop it with:
+
+```powershell
+docker compose down
+```
+
+The Compose files use Linux images. On Windows Server, the Docker engine must be configured for Linux containers or the stack must run on a Linux host. The Windows container engine cannot run `node:alpine`, `nginx:alpine`, or `postgres:alpine`.
+
+## Features
+
+- Add tasks
+- Mark tasks complete
+- Delete individual tasks
+- Clear completed tasks
+- PostgreSQL-backed persistence
