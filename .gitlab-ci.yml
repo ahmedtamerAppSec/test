@@ -26,7 +26,7 @@ deploy_windows:
     - '$old = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*$env:DEPLOY_ROOT\server.ps1*" }; $old | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }'
     - '$env:PGHOST = $env:DEPLOY_PGHOST; $env:PGPORT = $env:DEPLOY_PGPORT; $env:PGDATABASE = $env:DEPLOY_PGDATABASE; $env:PGUSER = $env:DEPLOY_PGUSER; $env:PGPASSWORD = $env:DEPLOY_PGPASSWORD; & "$env:DEPLOY_ROOT\start-background.ps1"'
     - '& "C:\nginx\nginx.exe" -t -p C:\nginx -c conf\nginx.conf'
-    - '& "C:\nginx\nginx.exe" -s reload'
+    - 'Push-Location C:\nginx; & .\nginx.exe -s reload; if ($LASTEXITCODE -ne 0) { throw "Nginx reload failed" }; Pop-Location'
     - '$response = Invoke-WebRequest http://localhost/ -UseBasicParsing; if ($response.StatusCode -ne 200) { throw "Nginx health check failed" }'
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
