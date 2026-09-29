@@ -16,12 +16,20 @@ build:
       - build-output/
     expire_in: 1 week
 
-security_test:
+secret_scan:
   stage: security_test
   tags:
     - windows
   script:
     - trufflehog.exe gitlab --token  --repo https://gitlab.com/appsec-group1/test.git
+
+SAST _scan:
+  stage: security_test
+  tags:
+    - windows
+  script:
+    - semgrep scan --config autot
+
 
 verify:
   stage: verify
