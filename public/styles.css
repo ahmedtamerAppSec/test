@@ -1,0 +1,11 @@
+:root { color-scheme: light; --ink: #17212b; --muted: #69737d; --paper: #f5f1e9; --accent: #e4572e; --line: #d9d1c5; }
+* { box-sizing: border-box; } body { margin: 0; min-height: 100vh; color: var(--ink); background: radial-gradient(circle at 15% 10%, #fff9ec 0 20%, transparent 48%), var(--paper); font: 16px/1.5 Georgia, serif; }
+.shell { width: min(680px, calc(100% - 40px)); margin: 0 auto; padding: 12vh 0 10vh; } .eyebrow { color: var(--accent); font: 700 12px/1.2 'Trebuchet MS', sans-serif; letter-spacing: 2px; }
+h1 { margin: 18px 0 8px; font-size: clamp(42px, 9vw, 76px); line-height: .95; font-weight: 400; } .intro { max-width: 420px; color: var(--muted); font-size: 18px; }
+.composer { display: flex; gap: 10px; margin: 42px 0 20px; } input:not([type=checkbox]) { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 3px; padding: 14px 15px; color: var(--ink); background: #fffdf8; font: inherit; }
+button { border: 0; border-radius: 3px; padding: 0 18px; color: #fff; background: var(--ink); font: 700 14px 'Trebuchet MS', sans-serif; cursor: pointer; } button:hover { background: var(--accent); }
+.status-row { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font: 13px 'Trebuchet MS', sans-serif; } .text-button { padding: 0; color: var(--accent); background: transparent; font-weight: 400; }
+.tasks { margin: 10px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); } .task { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.task label { display: flex; gap: 13px; align-items: center; min-width: 0; } .task label span { overflow-wrap: anywhere; } .task.done span { color: var(--muted); text-decoration: line-through; }
+input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); } .delete { padding: 0 6px; color: var(--muted); background: transparent; font-size: 22px; font-weight: 400; } .error { padding: 12px; color: #8a2110; background: #f9d8ce; }
+@media (max-width: 520px) { .shell { width: min(100% - 28px, 680px); padding-top: 8vh; } .composer { flex-direction: column; } button { min-height: 46px; } }
