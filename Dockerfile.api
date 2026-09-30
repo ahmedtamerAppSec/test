@@ -1,11 +1,9 @@
 FROM mcr.microsoft.com/windows/servercore:ltsc2022
 SHELL ["powershell", "-NoLogo", "-NoProfile", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
-ARG NODE_VERSION=22.14.0
-RUN Invoke-WebRequest -Uri ("https://nodejs.org/dist/v{0}/node-v{0}-win-x64.zip" -f $env:NODE_VERSION) -OutFile C:\node.zip; Expand-Archive -Path C:\node.zip -DestinationPath C:\; Rename-Item ("C:\node-v{0}-win-x64" -f $env:NODE_VERSION) C:\nodejs; Remove-Item C:\node.zip
-ENV PATH="C:\nodejs;C:\nodejs\node_modules\npm\bin"
-WORKDIR C:\app
+RUN Invoke-WebRequest -Uri 'https://nodejs.org/dist/v22.14.0/node-v22.14.0-win-x64.zip' -OutFile C:\node.zip; Expand-Archive -Path C:\node.zip -DestinationPath C:\; Rename-Item 'C:\node-v22.14.0-win-x64' C:\nodejs; Remove-Item C:\node.zip
+WORKDIR C:/app
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN cmd.exe /c C:\nodejs\npm.cmd install --omit=dev
 COPY app.js ./
 EXPOSE 3000
-CMD ["node", "app.js"]
+CMD ["C:/nodejs/node.exe", "app.js"]
