@@ -2,6 +2,9 @@ stages:
   - build
   - security_test
   - verify
+  - containerize
+  - container_scan
+  - container_publish
   - deploy
   - DAST
 
@@ -45,6 +48,52 @@ verify:
   script:
     - 'node --check app.js'
     - 'npm run build'
+
+containerize:
+  stage: containerize
+  tags:
+    - windows
+  variables:
+    IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  script:
+    - '$ErrorActionPreference = "Stop"'
+    - 'docker build --file Dockerfile.api --tag $env:IMAGE_NAME .'
+    - 'docker save --output container-image.tar $env:IMAGE_NAME'
+  artifacts:
+    paths:
+      - container-image.tar
+    expire_in: 1 day
+
+container_scan:
+  stage: container_scan
+  tags:
+    - windows
+  needs:
+    - job: containerize
+      artifacts: true
+  variables:
+    IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  script:
+    - '$ErrorActionPreference = "Stop"'
+    - 'docker run --rm --volume "${env:CI_PROJECT_DIR}:/workspace" aquasec/trivy:0.57.1 image --input /workspace/container-image.tar --no-progress --exit-code 1 --severity HIGH,CRITICAL'
+
+container_publish:
+  stage: container_publish
+  tags:
+    - windows
+  needs:
+    - job: containerize
+      artifacts: true
+    - job: container_scan
+  variables:
+    IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  script:
+    - '$ErrorActionPreference = "Stop"'
+    - 'docker load --input container-image.tar'
+    - '$env:CI_REGISTRY_PASSWORD | docker login $env:CI_REGISTRY --username $env:CI_REGISTRY_USER --password-stdin'
+    - 'docker push $env:IMAGE_NAME'
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 deploy_windows:
   stage: deploy
