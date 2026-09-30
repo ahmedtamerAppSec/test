@@ -58,39 +58,32 @@ containerize:
   script:
     - '$ErrorActionPreference = "Stop"'
     - 'docker build --file Dockerfile.api --tag $env:IMAGE_NAME .'
-    - 'docker save --output container-image.tar $env:IMAGE_NAME'
-  artifacts:
-    paths:
-      - container-image.tar
-    expire_in: 1 day
 
 container_scan:
   stage: container_scan
   tags:
     - windows
   needs:
-    - job: containerize
-      artifacts: true
+    - containerize
   variables:
     IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
   script:
     - '$ErrorActionPreference = "Stop"'
+    - 'docker image inspect $env:IMAGE_NAME | Out-Null'
     - '$trivyVersion = "0.57.1"; $trivyZip = Join-Path $env:TEMP "trivy-$trivyVersion.zip"; Invoke-WebRequest -Uri "https://github.com/aquasecurity/trivy/releases/download/v$trivyVersion/trivy_$($trivyVersion)_Windows-64bit.zip" -OutFile $trivyZip; Expand-Archive -Path $trivyZip -DestinationPath "$env:CI_PROJECT_DIR\.trivy" -Force'
-    - '& "$env:CI_PROJECT_DIR\.trivy\trivy.exe" image --input container-image.tar --no-progress --exit-code 1 --severity HIGH,CRITICAL'
+    - '& "$env:CI_PROJECT_DIR\.trivy\trivy.exe" image $env:IMAGE_NAME --no-progress --exit-code 1 --severity HIGH,CRITICAL'
 
 container_publish:
   stage: container_publish
   tags:
     - windows
   needs:
-    - job: containerize
-      artifacts: true
-    - job: container_scan
+    - container_scan
   variables:
     IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
   script:
     - '$ErrorActionPreference = "Stop"'
-    - 'docker load --input container-image.tar'
+    - 'docker image inspect $env:IMAGE_NAME | Out-Null'
     - '$env:CI_REGISTRY_PASSWORD | docker login $env:CI_REGISTRY --username $env:CI_REGISTRY_USER --password-stdin'
     - 'docker push $env:IMAGE_NAME'
   rules:
