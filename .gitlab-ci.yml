@@ -34,12 +34,12 @@ SAST_scan:
   script:
     - semgrep scan --config auto .
 
-# SCA_SCAN:
-#   stage: security_test
-#   tags:
-#     - windows
-#   script:
-#     - dependency-check.bat --scan . --nvdApiKey $NVD_API_KEY
+SCA_SCAN:
+  stage: security_test
+  tags:
+    - windows
+  script:
+    - dependency-check.bat --scan . --nvdApiKey $NVD_API_KEY
 
 verify:
   stage: verify
@@ -125,8 +125,4 @@ DAST:
   tags:
     - windows
   script:
-    - zap.bat -cmd -quickurl http://localhost/ -quickprogress
-  artifacts:
-    paths:
-      - testreport.html
-    expire_in: 1 week
+    - zap.bat -cmd -quickurl http://localhost/ 
