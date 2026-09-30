@@ -97,18 +97,19 @@ deploy_windows:
   needs:
     - job: build
       artifacts: true
+    - job: container_publish
   variables:
-    PORT: "8083"
+    IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
     DEPLOY_ROOT: "C:\\apps\\local-tasks"
   script:
     - '$ErrorActionPreference = "Stop"'
     - 'New-Item -ItemType Directory -Force -Path "$env:DEPLOY_ROOT\public" | Out-Null' #
     - 'Copy-Item "$env:CI_PROJECT_DIR\build-output\public\*" "$env:DEPLOY_ROOT\public" -Recurse -Force'
-    - 'Copy-Item "$env:CI_PROJECT_DIR\build-output\app.js", "$env:CI_PROJECT_DIR\build-output\package.json" $env:DEPLOY_ROOT -Force'
     - 'Copy-Item "$env:CI_PROJECT_DIR\build-output\nginx.windows.conf" "C:\nginx\conf\nginx.conf" -Force'
-    - 'Push-Location $env:DEPLOY_ROOT; npm install --omit=dev; Pop-Location'
-    - '$old = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*$env:DEPLOY_ROOT\app.js*" }; $old | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }'
-    - '$env:PORT = "8083"; $env:PGHOST = $env:DEPLOY_PGHOST; $env:PGPORT = $env:DEPLOY_PGPORT; $env:PGDATABASE = $env:DEPLOY_PGDATABASE; $env:PGUSER = $env:DEPLOY_PGUSER; $env:PGPASSWORD = $env:DEPLOY_PGPASSWORD; Start-Process -FilePath "node.exe" -ArgumentList "`"$env:DEPLOY_ROOT\app.js`"" -WorkingDirectory $env:DEPLOY_ROOT -WindowStyle Hidden'
+    - '$env:CI_REGISTRY_PASSWORD | docker login $env:CI_REGISTRY --username $env:CI_REGISTRY_USER --password-stdin'
+    - 'docker pull $env:IMAGE_NAME'
+    - '$oldContainer = docker ps -aq --filter "name=^local-tasks-api$"; if ($oldContainer) { docker rm -f $oldContainer }'
+    - 'docker run --detach --name local-tasks-api --restart unless-stopped --publish 127.0.0.1:3000:3000 --env PORT=3000 --env PGHOST=$env:DEPLOY_PGHOST --env PGPORT=$env:DEPLOY_PGPORT --env PGDATABASE=$env:DEPLOY_PGDATABASE --env PGUSER=$env:DEPLOY_PGUSER --env PGPASSWORD=$env:DEPLOY_PGPASSWORD $env:IMAGE_NAME'
     - '& "C:\nginx\nginx.exe" -t -p C:\nginx -c conf\nginx.conf'
     - 'Push-Location C:\nginx; & .\nginx.exe -s reload; if ($LASTEXITCODE -ne 0) { throw "Nginx reload failed" }; Pop-Location'
     - '$response = Invoke-WebRequest http://localhost/ -UseBasicParsing; if ($response.StatusCode -ne 200) { throw "Nginx health check failed" }'
