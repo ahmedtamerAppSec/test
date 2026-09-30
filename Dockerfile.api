@@ -1,8 +1,11 @@
-FROM node:22-alpine
-WORKDIR /app
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+SHELL ["powershell", "-NoLogo", "-NoProfile", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+ARG NODE_VERSION=22.14.0
+RUN Invoke-WebRequest -Uri ("https://nodejs.org/dist/v{0}/node-v{0}-win-x64.zip" -f $env:NODE_VERSION) -OutFile C:\node.zip; Expand-Archive -Path C:\node.zip -DestinationPath C:\; Rename-Item ("C:\node-v{0}-win-x64" -f $env:NODE_VERSION) C:\nodejs; Remove-Item C:\node.zip
+ENV PATH="C:\nodejs;C:\nodejs\node_modules\npm\bin"
+WORKDIR C:\app
 COPY package*.json ./
 RUN npm install --omit=dev
 COPY app.js ./
-USER node
 EXPOSE 3000
 CMD ["node", "app.js"]

@@ -75,7 +75,8 @@ container_scan:
     IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
   script:
     - '$ErrorActionPreference = "Stop"'
-    - 'docker run --rm --volume "${env:CI_PROJECT_DIR}:/workspace" aquasec/trivy:0.57.1 image --input /workspace/container-image.tar --no-progress --exit-code 1 --severity HIGH,CRITICAL'
+    - '$trivyVersion = "0.57.1"; $trivyZip = Join-Path $env:TEMP "trivy-$trivyVersion.zip"; Invoke-WebRequest -Uri "https://github.com/aquasecurity/trivy/releases/download/v$trivyVersion/trivy_$($trivyVersion)_Windows-64bit.zip" -OutFile $trivyZip; Expand-Archive -Path $trivyZip -DestinationPath "$env:CI_PROJECT_DIR\.trivy" -Force'
+    - '& "$env:CI_PROJECT_DIR\.trivy\trivy.exe" image --input container-image.tar --no-progress --exit-code 1 --severity HIGH,CRITICAL'
 
 container_publish:
   stage: container_publish
