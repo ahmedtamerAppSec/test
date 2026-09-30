@@ -22,6 +22,21 @@ Add these CI/CD variables to the GitLab project. Mark `DEPLOY_PGPASSWORD` as mas
 - `DEPLOY_PGUSER`: PostgreSQL username
 - `DEPLOY_PGPASSWORD`: PostgreSQL password
 
+DefectDojo integration uses the following masked CI/CD variables. Set
+`DEFECTDOJO_URL` to the DefectDojo server URL without `/dashboard` (for
+example, `http://192.168.100.179:8080`), and store the API token only in
+`DEFECTDOJO_API_TOKEN`:
+
+- `DEFECTDOJO_URL`
+- `DEFECTDOJO_API_TOKEN`
+- `DEFECTDOJO_PRODUCT_TYPE`
+- `DEFECTDOJO_PRODUCT`
+- `DEFECTDOJO_ENGAGEMENT`
+
+The security jobs upload Semgrep, OWASP Dependency-Check, Trivy, and ZAP
+reports to the configured product and engagement. Mark the token as masked
+and protected in GitLab.
+
 ## Deployment
 
 Push to the default branch. `.gitlab-ci.yml` will:
