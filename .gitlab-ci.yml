@@ -113,10 +113,12 @@ SAST_scan:
 SCA_SCAN:
   stage: security_test
   dependencies: []
-  resource_group: dependency-check-data   # the NVD cache must not be used by two jobs at once
+  resource_group: dependency-check-data
   script:
     - |
       if ([string]::IsNullOrWhiteSpace($env:NVD_API_KEY)) { throw 'CI/CD variable NVD_API_KEY is not set' }
+      npm ci --omit=dev --ignore-scripts
+      if ($LASTEXITCODE -ne 0) { throw "npm ci failed (exit code $LASTEXITCODE)" }
       $failOn = if ($env:SECURITY_GATE -eq 'true') { $env:DC_FAIL_ON_CVSS } else { '11' }
       dependency-check.bat --project "$env:CI_PROJECT_NAME" --scan . --exclude "**/.git/**" --format XML --out dependency-check-report --data "$env:TOOLS_DIR\dependency-check-data" --nvdApiKey "$env:NVD_API_KEY" --failOnCVSS $failOn
       if ($LASTEXITCODE -ne 0) { throw "Dependency-Check exited with code $LASTEXITCODE (scan error, or CVSS >= $failOn with SECURITY_GATE=true)" }
