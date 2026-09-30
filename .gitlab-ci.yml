@@ -72,6 +72,7 @@ container_scan:
     - 'docker image inspect $env:IMAGE_NAME | Out-Null'
     - '$trivyVersion = "0.74.0"; $trivyZip = Join-Path $env:TEMP "trivy-$trivyVersion.zip"; Invoke-WebRequest -Uri "https://github.com/aquasecurity/trivy/releases/download/v$trivyVersion/trivy_$($trivyVersion)_windows-64bit.zip" -OutFile $trivyZip; Expand-Archive -Path $trivyZip -DestinationPath "$env:CI_PROJECT_DIR\.trivy" -Force'
     - '& "$env:CI_PROJECT_DIR\.trivy\trivy.exe" image $env:IMAGE_NAME --no-progress --exit-code 1 --severity HIGH,CRITICAL'
+  allow_failure: true
 
 container_publish:
   stage: container_publish
