@@ -1,4 +1,4 @@
-// Multibranch pipeline: build -> secret scan + SCA -> verify -> deploy (main only).
+// Pipeline job for the main branch: build -> secret scan + SCA -> verify -> deploy.
 // Runs on the built-in node (label 'linux') as the 'jenkins' user. One-time server
 // prerequisites are created by deploy/setup-server.sh.
 
@@ -10,6 +10,11 @@ pipeline {
     disableConcurrentBuilds()          // the Trivy DB cache in /var/lib/trivy is shared
     buildDiscarder(logRotator(numToKeepStr: '20'))
     timeout(time: 30, unit: 'MINUTES')
+  }
+
+  triggers {
+    // gitlab.com cannot reach this server for webhooks, so poll for new commits.
+    pollSCM('* * * * *')
   }
 
   environment {
@@ -75,7 +80,6 @@ pipeline {
     }
 
     stage('Deploy') {
-      when { branch 'main' }
       steps {
         sh 'rsync -a --delete --exclude nginx.windows.conf build-output/ "$DEPLOY_DIR/"'
         // Only these three commands are allowed by /etc/sudoers.d/jenkins-deploy.
