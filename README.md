@@ -1,66 +1,73 @@
 # Local Tasks
 
-A PostgreSQL-backed task list deployed on Windows Server with a GitLab Windows shell runner. Nginx is the only public entry point; the Node.js API listens on localhost port 8083.
+A PostgreSQL-backed task list (Node.js API + static frontend), built, scanned and
+deployed by a Jenkins Multibranch Pipeline on a single Ubuntu server. Nginx is the
+only public entry point; the API listens on `127.0.0.1:8083` and is never exposed.
 
-## Server prerequisites
+## Pipeline
 
-- PostgreSQL 17 running locally
-- Nginx installed at `C:\nginx`
-- Node.js 22 LTS installed and available as `node` and `npm`
-- GitLab Runner installed and registered with the `windows` tag
-- Runner shell set to PowerShell
+Defined in [Jenkinsfile](Jenkinsfile). Runs on the Jenkins built-in node (label
+`linux`) as the `jenkins` user, for every branch; only `main` is deployed.
 
-The runner account must be allowed to write to `C:\apps` and reload Nginx.
+| Stage | What it does | Fails the build when |
+|---|---|---|
+| Build | `npm ci`, `npm run build`, production dependencies into `build-output/` | install or build errors |
+| Secret scan (TruffleHog) | Scans the **full git history** with built-in detectors plus [trufflehog-custom.yaml](trufflehog-custom.yaml) | any finding, verified or not (`--fail`) |
+| SCA (Trivy) | `trivy fs --scanners vuln` on `package-lock.json`, prints a table summary | any HIGH or CRITICAL vulnerability |
+| Verify | `node --check app.js`, checks the build output | missing files or syntax errors |
+| Deploy (`main` only) | rsync to `/opt/local-tasks`, restart the API, test and reload nginx, check `/health` | the app or nginx does not come up |
 
-## GitLab variables
+The two scans run in parallel. Reports are archived on every build:
+`trufflehog-report.json` (redacted, it never contains secret values) and
+`trivy-report.json`.
 
-Add these CI/CD variables to the GitLab project. Mark `DEPLOY_PGPASSWORD` as masked and protected:
+New commits are picked up by the job's periodic branch scan (every minute), since
+gitlab.com cannot reach the server for webhooks.
 
-- `DEPLOY_PGHOST`: PostgreSQL host, normally `localhost`
-- `DEPLOY_PGPORT`: normally `5432`
-- `DEPLOY_PGDATABASE`: normally `postgres`
-- `DEPLOY_PGUSER`: PostgreSQL username
-- `DEPLOY_PGPASSWORD`: PostgreSQL password
+## Deploying a change
 
-DefectDojo integration uses the following masked CI/CD variables. Set
-`DEFECTDOJO_URL` to the DefectDojo server URL without `/dashboard` (for
-example, `http://192.168.100.179:8080`), and store the API token only in
-`DEFECTDOJO_API_TOKEN`:
+1. Push to `main` (or merge a branch into it).
+2. Within a minute Jenkins builds `main`, runs both scans and deploys.
+3. Check the result in Jenkins (`local-tasks` » `main`), or on the server:
+   `systemctl status local-tasks` and `curl http://localhost/health`.
 
-- `DEFECTDOJO_URL`
-- `DEFECTDOJO_API_TOKEN`
-- `DEFECTDOJO_PRODUCT_TYPE`
-- `DEFECTDOJO_PRODUCT`
-- `DEFECTDOJO_ENGAGEMENT`
+If a scan fails, fix the finding (rotate and remove the secret, or upgrade the
+dependency). Do not weaken the scans.
 
-The security jobs upload Semgrep, OWASP Dependency-Check, Trivy, and ZAP
-reports to the configured product and engagement. Mark the token as masked
-and protected in GitLab.
+## Server layout
 
-## Deployment
+| What | Where |
+|---|---|
+| Jenkins | `/var/lib/jenkins`, systemd unit `jenkins`, port 8081 |
+| Deployed app | `/opt/local-tasks` (written by `jenkins`, read-only for the app) |
+| App service | systemd unit `local-tasks` ([deploy/local-tasks.service](deploy/local-tasks.service)), runs as user `localtasks` |
+| App configuration | `/etc/local-tasks/app.env` (root, mode 600): `PORT`, `PG*` settings and the DB password |
+| Database | PostgreSQL 16 on `127.0.0.1:5432`, database `tasks`, user `tasks_app` |
+| Nginx | `/etc/nginx/sites-available/local-tasks` ([deploy/nginx.linux.conf](deploy/nginx.linux.conf)), port 80 |
+| Deploy permissions | `/etc/sudoers.d/jenkins-deploy`: `jenkins` may only restart `local-tasks`, run `nginx -t` and reload nginx |
+| Trivy DB cache | `/var/lib/trivy` |
 
-Push to the default branch. `.gitlab-ci.yml` will:
+## One-time server setup
 
-1. Build and validate the Node.js API.
-2. Copy the API and frontend to `C:\apps\local-tasks`.
-3. Restart only this application's API process.
-4. Validate and reload Nginx.
-5. Check the public app at `http://localhost/`.
+Prerequisites: Jenkins, Node.js 22, nginx, PostgreSQL, TruffleHog and Trivy
+installed; a `tasks` database owned by `tasks_app`.
 
-Nginx serves `C:\apps\local-tasks\public` and proxies `/api/` to `127.0.0.1:8083`. Port 8083 is not exposed publicly.
+```bash
+sudo bash deploy/setup-server.sh
+```
+
+The script is idempotent. It creates the `localtasks` user, `/opt/local-tasks`,
+the systemd unit, the nginx site and the sudoers rule. It writes an `app.env`
+template only if none exists. Set `PGPASSWORD` there before the first deploy.
+
+Jenkins needs the built-in node labelled `linux`, a `gitlab-repo`
+username/password credential (read-only GitLab token) and a Multibranch Pipeline
+job pointing at this repository.
 
 ## Manual recovery
 
-From the deployment directory:
-
-```powershell
-$env:PORT = "8083"
-$env:PGHOST = "localhost"
-$env:PGPORT = "5432"
-$env:PGDATABASE = "postgres"
-$env:PGUSER = "postgres"
-npm install --omit=dev
-npm start
+```bash
+sudo systemctl restart local-tasks
+journalctl -u local-tasks -n 50
+sudo nginx -t && sudo systemctl reload nginx
 ```
-
-The Nginx configuration is in [nginx.windows.conf](nginx.windows.conf).
