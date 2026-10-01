@@ -1,1 +1,5 @@
 node_modules/
+build-output/
+trufflehog-raw.json
+trufflehog-report.json
+trivy-report.json

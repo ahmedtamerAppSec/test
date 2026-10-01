@@ -1,0 +1,14 @@
+# Custom TruffleHog detector for hardcoded passwords and secrets, e.g.
+#   password = "..."   secret: '...'   // password=...
+# Built-in detectors (GitLab tokens, cloud keys, ...) still run alongside this one.
+detectors:
+  - name: HardcodedPassword
+    keywords:
+      - password
+      - passwd
+      - secret
+    regex:
+      value: '(?i)\b(?:password|passwd|pwd|secret)\s*[:=]\s*["'']?([^\s"''`,;)]{6,})'
+    exclude_words:
+      - process.env
+      - CHANGE_ME

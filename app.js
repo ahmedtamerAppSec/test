@@ -1,13 +1,14 @@
 const http = require('node:http');
 const { Pool } = require('pg');
 
-const port = Number(process.env.PORT || 3000);
+const port = Number(process.env.PORT || 8083);
+const host = process.env.HOST || '127.0.0.1';
 const pool = new Pool({
   host: process.env.PGHOST || 'db',
   port: Number(process.env.PGPORT || 5432),
   database: process.env.PGDATABASE || 'tasks',
   user: process.env.PGUSER || 'tasks',
-  password: process.env.PGPASSWORD || 'tasks-password'
+  password: process.env.PGPASSWORD
 });
 
 const schema = `
@@ -95,8 +96,8 @@ const server = http.createServer((request, response) => {
   });
 });
 
-initialize().then(() => server.listen(port, '0.0.0.0', () => {
-  console.log(`API listening on port ${port}`);
+initialize().then(() => server.listen(port, host, () => {
+  console.log(`API listening on ${host}:${port}`);
 })).catch(error => {
   console.error('Database initialization failed', error);
   process.exit(1);

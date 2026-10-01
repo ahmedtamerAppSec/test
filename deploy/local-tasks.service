@@ -1,0 +1,32 @@
+[Unit]
+Description=Local Tasks API (Node.js)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=localtasks
+Group=localtasks
+WorkingDirectory=/opt/local-tasks
+# PORT, PG* settings and the DB password; root:root 600, read by systemd before dropping privileges.
+EnvironmentFile=/etc/local-tasks/app.env
+ExecStart=/usr/bin/node /opt/local-tasks/app.js
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the app only needs to read its code and talk to nginx/PostgreSQL over TCP.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
