@@ -3,3 +3,7 @@ build-output/
 trufflehog-raw.json
 trufflehog-report.json
 trivy-report.json
+image.tar
+image.digest
+image.ref
+trivy-image-report.json

@@ -1,0 +1,23 @@
+#!/bin/sh
+# ExecStartPre for local-tasks.service. /opt/local-tasks/image.env is written by
+# Jenkins, so only accept images from the configured repository, pinned by digest.
+set -eu
+
+fail() {
+  echo "local-tasks: $1" >&2
+  exit 1
+}
+
+[ -n "${ALLOWED_REPO:-}" ] || fail "ALLOWED_REPO is not set in /etc/local-tasks/deploy.conf"
+[ -n "${IMAGE:-}" ] || fail "IMAGE is not set in /opt/local-tasks/image.env"
+
+case "$IMAGE" in
+  "$ALLOWED_REPO"@sha256:*) ;;
+  *) fail "refusing image '$IMAGE': must be $ALLOWED_REPO@sha256:<digest>" ;;
+esac
+
+digest=${IMAGE#"$ALLOWED_REPO"@sha256:}
+case "$digest" in
+  *[!0-9a-f]*) fail "refusing image '$IMAGE': invalid digest" ;;
+esac
+[ "${#digest}" -eq 64 ] || fail "refusing image '$IMAGE': invalid digest length"

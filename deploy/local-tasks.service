@@ -1,32 +1,32 @@
 [Unit]
-Description=Local Tasks API (Node.js)
+Description=Local Tasks API (container image from Docker Hub)
 After=network-online.target postgresql.service
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=localtasks
-Group=localtasks
-WorkingDirectory=/opt/local-tasks
-# PORT, PG* settings and the DB password; root:root 600, read by systemd before dropping privileges.
-EnvironmentFile=/etc/local-tasks/app.env
-ExecStart=/usr/bin/node /opt/local-tasks/app.js
+# ALLOWED_REPO, e.g. docker.io/<namespace>/local-tasks (root-owned, set by setup-server.sh).
+EnvironmentFile=/etc/local-tasks/deploy.conf
+# IMAGE=<ALLOWED_REPO>@sha256:<digest>, written by the Jenkins deploy stage.
+EnvironmentFile=/opt/local-tasks/image.env
+ExecStartPre=/usr/local/lib/local-tasks/check-image
+ExecStartPre=/usr/bin/podman pull --quiet ${IMAGE}
+# Host network keeps the API on 127.0.0.1:8083 (behind nginx) and lets it reach
+# PostgreSQL on 127.0.0.1. The container itself is locked down.
+ExecStart=/usr/bin/podman run --rm --replace --name local-tasks \
+    --network host \
+    --env-file /etc/local-tasks/app.env \
+    --user 1000:1000 \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --pids-limit 256 \
+    --memory 256m \
+    ${IMAGE}
+ExecStop=/usr/bin/podman stop --ignore --time 10 local-tasks
 Restart=on-failure
 RestartSec=5
-
-# Hardening: the app only needs to read its code and talk to nginx/PostgreSQL over TCP.
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-PrivateDevices=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-RestrictSUIDSGID=true
-LockPersonality=true
-CapabilityBoundingSet=
+TimeoutStartSec=180
 
 [Install]
 WantedBy=multi-user.target

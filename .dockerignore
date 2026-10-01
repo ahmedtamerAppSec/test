@@ -1,3 +1,13 @@
 .git
 node_modules
+build-output
 *.log
+*.json.report
+trufflehog-*.json
+trivy-*.json
+image.tar
+image.digest
+image.ref
+Jenkinsfile
+deploy
+scripts
