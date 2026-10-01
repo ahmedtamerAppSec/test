@@ -89,7 +89,7 @@ pipeline {
       steps {
         sh '''
           rm -f image.tar
-          podman save --format oci-archive --output image.tar "$LOCAL_IMAGE"
+          podman save --format docker-archive --output image.tar "$LOCAL_IMAGE"
           set +e
           trivy image --input image.tar --scanners vuln \
             --cache-dir "$TRIVY_CACHE_DIR" \
