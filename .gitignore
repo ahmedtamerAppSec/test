@@ -8,3 +8,5 @@ image.digest
 image.ref
 trivy-image-report.json
 .scannerwork/
+detect-secrets-report.json
+sonarqube-report.json

@@ -1,0 +1,188 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Syntax check
+        run: node --check app.js
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build-output/
+          retention-days: 7
+
+  secret_scan:
+    name: Secret scan (detect-secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # hysnsec/detect-secrets wraps Yelp's detect-secrets. The repo is mounted at
+      # /src and the baseline is written to stdout, so nothing is created inside the
+      # container. --entrypoint is given explicitly so the call behaves the same
+      # whether the image declares detect-secrets as ENTRYPOINT or as CMD.
+      - name: Run detect-secrets
+        run: |
+          docker run --rm \
+            -v "$PWD:/src" -w /src \
+            --entrypoint detect-secrets \
+            hysnsec/detect-secrets \
+            scan --all-files \
+              --exclude-files '(^\.git/|^package-lock\.json$)' \
+            > detect-secrets-report.json
+
+      - name: Summarise findings
+        run: |
+          total=$(jq '[.results[]?[]?] | length' detect-secrets-report.json)
+          echo "Potential secrets: $total"
+          {
+            echo "### detect-secrets"
+            echo "Potential secrets: **$total**"
+            jq -r '.results | to_entries[] | "- `\(.key)` — \(.value | length) finding(s)"' \
+              detect-secrets-report.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detect-secrets-report
+          path: detect-secrets-report.json
+          retention-days: 7
+
+      # `detect-secrets scan` always exits 0 — it emits a baseline rather than a
+      # verdict — so the gate is enforced here.
+      - name: Fail on findings
+        run: |
+          total=$(jq '[.results[]?[]?] | length' detect-secrets-report.json)
+          if [ "$total" -gt 0 ]; then
+            echo "::error::detect-secrets found $total potential secret(s)"
+            jq -r '.results | to_entries[] | .key as $f | .value[] | "\($f):\(.line_number) \(.type)"' \
+              detect-secrets-report.json
+            exit 1
+          fi
+          echo "No potential secrets found."
+
+  sast:
+    name: SAST (SonarQube)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # SonarQube uses git history for blame and new-code detection
+
+      # The `sonarqube` image is the SERVER: it stores results and evaluates the
+      # quality gate, but it cannot analyse code by itself. The analysis is run by
+      # sonarsource/sonar-scanner-cli, which reports into the server. This server is
+      # ephemeral — it is discarded with the job, so findings are exported below
+      # instead of being browsed in the UI. To use a persistent SonarQube or
+      # SonarCloud instead, set SONAR_HOST_URL and SONAR_TOKEN as repository secrets,
+      # reference them in the "Run sonar-scanner" step, and drop the three server steps.
+      - name: Start SonarQube server
+        run: |
+          sudo sysctl -w vm.max_map_count=262144 || true
+          docker run -d --name sonarqube \
+            -p 9000:9000 \
+            -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true \
+            sonarqube:lts-community
+
+      - name: Wait for SonarQube to come up
+        run: |
+          for _ in $(seq 1 60); do
+            status=$(curl -fsS http://localhost:9000/api/system/status 2>/dev/null | jq -r '.status' || echo DOWN)
+            echo "status=$status"
+            if [ "$status" = "UP" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::SonarQube did not become ready in time"
+          docker logs sonarqube
+          exit 1
+
+      - name: Create an analysis token
+        run: |
+          # A fresh server starts on admin/admin and refuses API calls until the
+          # password is changed. Both values exist only for the life of this job.
+          new_pw="$(openssl rand -hex 24)"
+          echo "::add-mask::$new_pw"
+          curl -fsS -u admin:admin -X POST http://localhost:9000/api/users/change_password \
+            --data-urlencode "login=admin" \
+            --data-urlencode "previousPassword=admin" \
+            --data-urlencode "password=$new_pw" > /dev/null
+          token="$(curl -fsS -u "admin:$new_pw" -X POST \
+            http://localhost:9000/api/user_tokens/generate \
+            --data-urlencode "name=github-actions-$GITHUB_RUN_ID" | jq -r '.token')"
+          echo "::add-mask::$token"
+          echo "SONAR_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Run sonar-scanner
+        run: |
+          docker run --rm \
+            --network host \
+            -e SONAR_HOST_URL=http://localhost:9000 \
+            -e SONAR_TOKEN="$SONAR_TOKEN" \
+            -v "$PWD:/usr/src" \
+            sonarsource/sonar-scanner-cli
+
+      - name: Export findings
+        run: |
+          key="$(grep -E '^sonar\.projectKey=' sonar-project.properties | cut -d= -f2)"
+          curl -fsS -u "$SONAR_TOKEN:" \
+            "http://localhost:9000/api/issues/search?componentKeys=$key&ps=500&resolved=false" \
+            > sonarqube-report.json
+          {
+            echo "### SonarQube"
+            echo "Total open issues: **$(jq '.total' sonarqube-report.json)**"
+            jq -r '.issues | group_by(.severity) | .[] | "- \(.[0].severity): \(length)"' \
+              sonarqube-report.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.issues[] | "\(.severity)\t\(.component):\(.line // 0)\t\(.message)"' \
+            sonarqube-report.json
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonarqube-report
+          path: sonarqube-report.json
+          retention-days: 7
+
+      - name: Fail on blocker or critical issues
+        run: |
+          n=$(jq '[.issues[] | select(.severity == "BLOCKER" or .severity == "CRITICAL")] | length' \
+            sonarqube-report.json)
+          if [ "$n" -gt 0 ]; then
+            echo "::error::SonarQube reported $n blocker/critical issue(s)"
+            exit 1
+          fi
+          echo "No blocker or critical issues."
+
+      - name: Stop SonarQube
+        if: always()
+        run: docker rm -f sonarqube || true
